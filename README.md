@@ -1,2 +1,2 @@
 # rosu_player
-Beginner project, osu map parser and renderer (wip)
+Beginner project, osu map parser and renderer (wip, does not work atm)
