@@ -1,13 +1,14 @@
 [package]
-name = "renderer"
+name = "rosu_renderer"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+argh = "0.1.9"
 bevy = "0.8.1"
-osu_parser = { path = "../osu_parser" }
+rosu_parser = { path = "../rosu_parser" }
 
 # Enable a small amount of optimization in debug mode
 [profile.dev]

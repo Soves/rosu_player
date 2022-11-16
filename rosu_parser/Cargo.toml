@@ -1,5 +1,5 @@
 [package]
-name = "osu_parser"
+name = "rosu_parser"
 version = "0.1.0"
 edition = "2021"
 

@@ -3,6 +3,6 @@
 resolver = "2" 
 
 members = [
-    "renderer",
-    "osu_parser"
+    "rosu_renderer",
+    "rosu_parser"
 ]
