@@ -38,9 +38,19 @@ impl Player {
                     color: Color::WHITE,
                 };
                 let text_alignment = TextAlignment::CENTER;
+
+                let mut text: String = "song name (not darude sandstorm): \n"
+                    .to_string();
+
+                text.push_str(
+                    result.get("Metadata".to_string(), "Title".to_string())[0]
+                        .clone()
+                        .as_str()
+                    );
+
                 commands.spawn_bundle(
                     Text2dBundle {
-                        text: Text::from_section(result.get("Metadata".to_string(), "Title".to_string())[0].clone(), text_style)
+                        text: Text::from_section(text, text_style)
                             .with_alignment(text_alignment),
                         ..default()
                     }
