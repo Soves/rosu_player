@@ -1,12 +1,13 @@
-use std::{str::{Chars, Bytes}, collections::{HashMap, btree_map::VacantEntry}, rc::Rc, cell::RefCell, path::{Path, PathBuf}, fs};
+use std::{str::{Bytes}, path::PathBuf, fs};
 
-//TODO: 
-// value parsing into int/str
-// comma separated value lists
-// parsing version header
+pub mod events;
+pub mod sections;
+use sections::*;
 
 #[derive(Debug)]
 pub struct Osu {
+    pub version: Option<usize>,
+
     pub general: Option<General>,
     pub editor: Option<Editor>,
     pub metadata: Option<Metadata>,
@@ -32,16 +33,12 @@ impl Osu {
         Osu::load_from_string(fs::read_to_string(filename).unwrap())
     }
 
-    //TODO: handle gracefully
-    pub fn get(&self, section: String, key: String) -> String{
-        todo!()
-        //self.sections.get(&section).unwrap().data.get(&key).unwrap().into()
-    }
 }
 
 impl Default for Osu {
     fn default() -> Self {
-        Self { 
+        Self {
+            version: None,
             general: Default::default(),
             editor: Default::default(),
             metadata: Default::default(),
@@ -54,64 +51,6 @@ impl Default for Osu {
     }
 }
 
-#[derive(Debug, Default)]
-pub struct General {
-    pub audio_filename: Option<PathBuf>,
-    pub audio_lead_in: Option<isize>,
-    pub audio_hash: Option<String>, //deprecated
-    pub preview_time: Option<isize>,
-    pub countdown: Option<usize>,
-    pub sample_set: Option<String>,
-    pub stack_leniency: Option<f32>,
-    pub mode: Option<usize>,
-    pub letter_box_in_breaks: Option<bool>,
-    pub story_fire_in_front: Option<bool>,  //deprecated
-    pub use_skin_sprites: Option<bool>,
-    pub always_show_playfield: Option<bool>,  //deprecated
-    pub overlay_position: Option<String>,
-    pub skin_preference: Option<String>,
-    pub epilepsy_warning: Option<bool>,
-    pub countdown_offset: Option<isize>,
-    pub special_style: Option<bool>,
-    pub widescreen_storyboard: Option<bool>,
-    pub samples_match_playback_rate: Option<bool>,
-}
-
-#[derive(Debug, Default)]
-pub struct Editor {
-
-}
-
-#[derive(Debug, Default)]
-pub struct Metadata {
-    pub title: Option<String>,
-}
-
-#[derive(Debug, Default)]
-pub struct Difficulty {
-
-}
-
-#[derive(Debug, Default)]
-pub struct Events {
-
-}
-
-#[derive(Debug, Default)]
-pub struct TimingPoints {
-
-}
-
-#[derive(Debug, Default)]
-pub struct Colours {
-
-}
-
-#[derive(Debug, Default)]
-pub struct HitObjects {
-
-}
-
 enum Section {
     General(General),
     Editor(Editor),
@@ -121,12 +60,6 @@ enum Section {
     TimingPoints(TimingPoints),
     Colours(Colours),
     HitObjects(HitObjects),
-}
-
-#[derive(Debug)]
-pub enum Value {
-    Str(String),
-    Int(i32),
 }
 
 struct Parser<'a> {
@@ -182,13 +115,6 @@ impl<'a> Parser<'a> {
         Err(Error::Parse(msg.into()))
     }
 
-    fn parse_header(&mut self) -> Result<String, Error>{
-        self.parse_whitespace();
-        let res = self.parse_str_until_eol();
-        self.parse_whitespace();
-        res
-    }
-
     fn parse_whitespace(&mut self) {
         
         while let Some(c) = self.chr {
@@ -219,13 +145,22 @@ impl<'a> Parser<'a> {
         self.result = Some(Osu::new());
         self.key = None;
 
-        let _header = self.parse_header()?;
+        self.parse_whitespace();
 
         while let Some(cur_chr) = self.chr {
             match cur_chr {
-                b';' | b'#' => {
+                b'/' | b'#' => {
                     if self.col > 1 {
                         return self.error("doesn't supprt inline comments");
+                    }
+
+                    //not necessary, single slash comments would be fine, just to be closer to spec
+                    if cur_chr == b'/'{
+                        if let Some(next_char) = self.reader.by_ref().peekable().next(){
+                            if next_char != b'/'{
+                                return self.error("only one \"/\" found, expecting 2");
+                            }
+                        }
                     }
 
                     self.parse_comment();
@@ -238,7 +173,7 @@ impl<'a> Parser<'a> {
 
                     self.parse_val()?
                 }
-                _ => self.parse_key()?,
+                _ => self.parse_property()?,
             }
 
             self.parse_whitespace();
@@ -320,6 +255,81 @@ impl<'a> Parser<'a> {
             self.finish_section(sec)?;
         }
         self.section = Some(next_section);
+        Ok(())
+    }
+
+    fn parse_property(&mut self) -> Result<(), Error> {
+
+        match self.section {
+            
+            Some(Section::General(_)) => self.parse_key(),
+            Some(Section::Editor(_)) => self.parse_key(),
+            Some(Section::Metadata(_)) => self.parse_key(),
+            Some(Section::Difficulty(_)) => self.parse_key(),
+            Some(Section::Events(_)) => self.parse_list(),
+            Some(Section::TimingPoints(_)) => self.parse_list(),
+            Some(Section::Colours(_)) => self.parse_key(),
+            Some(Section::HitObjects(_)) => self.parse_list(),
+            None => {
+                //we dont mind not having a section, just ignore preperties until next section
+                //we match for the top level version number here
+                if self.line == 0{
+                    let version_str = self.parse_str_until_eol()?;
+
+                    if let Some(res) = self.result.as_mut() {
+                        if let Some(version_num) = version_str.split(" ").last() {
+                            res.version = Some(
+                                version_num.trim_start_matches("v").parse().unwrap()
+                            );
+                        }
+                    }
+
+                }
+
+                return Ok(());
+            }
+
+        }
+
+    }
+
+    fn parse_list(&mut self) -> Result<(), Error> {
+        let list = self.parse_str_until_eol()?;
+
+        let mut params = list.split(",");
+        
+        match self.section.as_mut() {
+            Some(Section::Events(e)) => {
+                //event type
+                match params.next() {
+                    Some("0") => { 
+                        e.backgrounds.push(events::Background{ 
+                            start_time: params.next().unwrap().parse().unwrap(),
+                            filename: PathBuf::from(params.next().unwrap().trim_matches('"')),
+                            x_offset: params.next().unwrap().parse().unwrap(),
+                            y_offset: params.next().unwrap().parse().unwrap(),
+                        });
+                    },
+                    Some("1") | Some("Video") => {
+                        e.videos.push(events::Video{ 
+                            start_time: params.next().unwrap().parse().unwrap(),
+                            filename: PathBuf::from(params.next().unwrap()),
+                            x_offset: params.next().unwrap().parse().unwrap(),
+                            y_offset: params.next().unwrap().parse().unwrap(),
+                        });
+                    },
+                    Some("2") | Some("Break") => {
+                        e.breaks.push(events::Break{ 
+                            start_time: params.next().unwrap().parse().unwrap(),
+                            end_time: params.next().unwrap().parse().unwrap(),
+                        });
+                    },
+                    _ => {}
+                }
+            },
+            _ => {}
+        }
+
         Ok(())
     }
 

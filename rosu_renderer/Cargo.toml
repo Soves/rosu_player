@@ -19,11 +19,10 @@ features = [
   "bevy_asset",
   "bevy_scene",
   "bevy_winit",
-  "bevy_gilrs",
-  "png",
-  "hdr",
   "filesystem_watcher",
-  "x11"
+  "x11",
+  "jpeg",
+  "png",
 ]
 
 [dependencies.bevy_kira_audio]
