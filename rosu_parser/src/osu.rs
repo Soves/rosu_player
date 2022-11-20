@@ -181,10 +181,12 @@ impl<'a> Parser<'a> {
 
         //make sure the last section gets written to result
         if let Some(sec) = self.section.take() {
+            
             self.finish_section(sec)?;
         }
 
         if let Some(res) = self.result.take() {
+            println!("last sec");
             return Ok(res)
         }
 
@@ -230,16 +232,16 @@ impl<'a> Parser<'a> {
         self.bump();
         
         let next_section;
-        match section_str {
+        next_section = match section_str {
         
-            "General" => next_section = Section::General(General::default()),
-            "Editor" => next_section = Section::Editor(Editor::default()),
-            "Metadata" => next_section = Section::Metadata(Metadata::default()),
-            "Difficulty" => next_section= Section::Difficulty(Difficulty::default()),
-            "Events" => next_section = Section::Events(Events::default()),
-            "TimingPoints" => next_section = Section::TimingPoints(TimingPoints::default()),
-            "Colours" => next_section = Section::Colours(Colours::default()),
-            "HitObjects" => next_section = Section::HitObjects(HitObjects::default()),
+            "General" => Section::General(General::default()),
+            "Editor" => Section::Editor(Editor::default()),
+            "Metadata" => Section::Metadata(Metadata::default()),
+            "Difficulty" => Section::Difficulty(Difficulty::default()),
+            "Events" => Section::Events(Events::default()),
+            "TimingPoints" => Section::TimingPoints(TimingPoints::default()),
+            "Colours" => Section::Colours(Colours::default()),
+            "HitObjects" => Section::HitObjects(HitObjects::default()),
 
             _ => {
                 //undefined section
@@ -249,11 +251,12 @@ impl<'a> Parser<'a> {
                     section_str
                 ));
             }
-        }
+        };
         
         if let Some(sec) = self.section.take() {
             self.finish_section(sec)?;
         }
+        
         self.section = Some(next_section);
         Ok(())
     }
@@ -277,9 +280,14 @@ impl<'a> Parser<'a> {
                     let version_str = self.parse_str_until_eol()?;
 
                     if let Some(res) = self.result.as_mut() {
-                        if let Some(version_num) = version_str.split(" ").last() {
+                        if let Some(version_num) = version_str
+                            .split(" ").last() {
+
                             res.version = Some(
-                                version_num.trim_start_matches("v").parse().unwrap()
+                                version_num
+                                    .trim_start_matches("v")
+                                    .parse()
+                                    .unwrap()
                             );
                         }
                     }
@@ -297,36 +305,64 @@ impl<'a> Parser<'a> {
         let list = self.parse_str_until_eol()?;
 
         let mut params = list.split(",");
-        
+
+        //TODO: handle gracefully and clean it up
         match self.section.as_mut() {
-            Some(Section::Events(e)) => {
-                //event type
-                match params.next() {
-                    Some("0") => { 
-                        e.backgrounds.push(events::Background{ 
-                            start_time: params.next().unwrap().parse().unwrap(),
-                            filename: PathBuf::from(params.next().unwrap().trim_matches('"')),
-                            x_offset: params.next().unwrap().parse().unwrap(),
-                            y_offset: params.next().unwrap().parse().unwrap(),
-                        });
-                    },
-                    Some("1") | Some("Video") => {
-                        e.videos.push(events::Video{ 
-                            start_time: params.next().unwrap().parse().unwrap(),
-                            filename: PathBuf::from(params.next().unwrap()),
-                            x_offset: params.next().unwrap().parse().unwrap(),
-                            y_offset: params.next().unwrap().parse().unwrap(),
-                        });
-                    },
-                    Some("2") | Some("Break") => {
-                        e.breaks.push(events::Break{ 
-                            start_time: params.next().unwrap().parse().unwrap(),
-                            end_time: params.next().unwrap().parse().unwrap(),
-                        });
-                    },
-                    _ => {}
-                }
+            Some(Section::Events(e)) => match params.next() { //event type
+                Some("0") => e.backgrounds.push(events::Background{ 
+                    start_time: params.next().unwrap().parse().unwrap(),
+                    filename: PathBuf::from(params.next().unwrap().trim_matches('"')),
+                    x_offset: params.next().unwrap().parse().unwrap(),
+                    y_offset: params.next().unwrap().parse().unwrap(),
+                }),
+                Some("1") | Some("Video") => e.videos.push(events::Video{ 
+                    start_time: params.next().unwrap().parse().unwrap(),
+                    filename: PathBuf::from(params.next().unwrap()),
+                    x_offset: params.next().unwrap().parse().unwrap(),
+                    y_offset: params.next().unwrap().parse().unwrap(),
+                }),
+                Some("2") | Some("Break") => e.breaks.push(events::Break{ 
+                    start_time: params.next().unwrap().parse().unwrap(),
+                    end_time: params.next().unwrap().parse().unwrap(),
+                }),
+                _ => {}
             },
+            Some(Section::TimingPoints(s)) => {
+                s.push(TimingPoint { 
+                    time: params.next().unwrap().parse().unwrap(),
+                    beat_length: params.next().unwrap().parse().unwrap(),
+                    meter: params.next().unwrap().parse().unwrap(),
+                    sample_set: params.next().unwrap().parse().unwrap(),
+                    sample_index: params.next().unwrap().parse().unwrap(),
+                    volume: params.next().unwrap().parse().unwrap(),
+                    uninherited: params.next().unwrap().parse::<usize>().unwrap() != 0,
+                    effects: params.next().unwrap().parse().unwrap(),
+                });
+            }
+            Some(Section::Colours(s)) => {
+                s.push(Colour { 
+                    combo: params.next().unwrap().trim_start_matches("Combo").parse().unwrap(),
+                    slider_track_override: params.next().unwrap().parse().unwrap(),
+                    slider_border: params.next().unwrap().parse().unwrap(),
+                });
+            }
+            Some(Section::HitObjects(s)) => {
+                s.push(HitObject { 
+                    x: params.next().unwrap().parse().unwrap(),
+                    y: params.next().unwrap().parse().unwrap(),
+                    time: params.next().unwrap().parse().unwrap(),
+                    r#type: params.next().unwrap().parse().unwrap(),
+                    hit_sound: params.next().unwrap().parse().unwrap(),
+                    object_params: match params.next() {
+                        Some(string) => Some(String::from(string)),
+                        None => None,
+                    },
+                    hit_sample: match params.next() {
+                        Some(string) => Some(String::from(string)),
+                        None => None,
+                    },
+                });
+            }
             _ => {}
         }
 
@@ -362,68 +398,73 @@ impl<'a> Parser<'a> {
         
 
         if let Some(sec) = self.section.as_mut(){
-            
             //write value
             match sec {
-        
-                Section::General(s) => {
-                    
-                    match self.key.as_mut() {
-                        Some(k) => {
-                            
-                            match k.as_str() {
-                                "AudioFilename" => s.audio_filename = Some(PathBuf::from(mval)),
-                                "AudioLeadIn" => s.audio_lead_in = Some(mval.parse().unwrap()),
-                                "AudioHash" => s.audio_hash = Some(String::from(mval)),
-                                "PreviewTime" => s.preview_time = Some(mval.parse().unwrap()),
-                                "Countdown" => s.countdown = Some(mval.parse().unwrap()),
-                                "SampleSet" => s.sample_set = Some(String::from(mval)),
-                                "StackLeniency" => s.stack_leniency = Some(mval.parse().unwrap()),
-                                "Mode" => s.mode = Some(mval.parse().unwrap()),
-                                "LetterboxInBreaks" => s.letter_box_in_breaks = Some(mval.parse::<usize>().unwrap() != 0),
-                                "StoryFireInFront" => s.story_fire_in_front = Some(mval.parse::<usize>().unwrap() != 0),
-                                "UseSkinSprites" => s.use_skin_sprites = Some(mval.parse::<usize>().unwrap() != 0),
-                                "AlwaysShowPlayfield" => s.always_show_playfield = Some(mval.parse::<usize>().unwrap() != 0),
-                                "OverlayPosition" => s.overlay_position = Some(String::from(mval)),
-                                "SkinPreference" => s.skin_preference = Some(String::from(mval)),
-                                "EpilepsyWarning" => s.epilepsy_warning = Some(mval.parse::<usize>().unwrap() != 0),
-                                "CountdownOffset" => s.countdown_offset = Some(mval.parse().unwrap()),
-                                "SpecialStyle" => s.special_style = Some(mval.parse::<usize>().unwrap() != 0),
-                                "WidescreenStoryboard" => s.widescreen_storyboard = Some(mval.parse::<usize>().unwrap() != 0),
-                                "samples_match_playback_rate" => s.samples_match_playback_rate = Some(mval.parse::<usize>().unwrap() != 0),
-                                _ => {}
-                            }
-                           
-                        }
-                        None => return self.error("Key not defined"),
-                    }
-                }
-                Section::Editor(s) => {
-
-                }
-                Section::Metadata(s) => {
-                    match self.key.as_mut() {
-                        Some(k) => {
-                            
-                            match k.as_str() {
-                                "Title" => s.title = Some(String::from(mval)),
-                                _ => {}
-                            }
-                        }
+                Section::General(s) => match self.key.as_mut() {
+                    Some(k) => match k.as_str() {
+                        "AudioFilename" => s.audio_filename = Some(PathBuf::from(mval)),
+                        "AudioLeadIn" => s.audio_lead_in = Some(mval.parse().unwrap()),
+                        "AudioHash" => s.audio_hash = Some(String::from(mval)),
+                        "PreviewTime" => s.preview_time = Some(mval.parse().unwrap()),
+                        "Countdown" => s.countdown = Some(mval.parse().unwrap()),
+                        "SampleSet" => s.sample_set = Some(String::from(mval)),
+                        "StackLeniency" => s.stack_leniency = Some(mval.parse().unwrap()),
+                        "Mode" => s.mode = Some(mval.parse().unwrap()),
+                        "LetterboxInBreaks" => s.letter_box_in_breaks = Some(mval.parse::<usize>().unwrap() != 0),
+                        "StoryFireInFront" => s.story_fire_in_front = Some(mval.parse::<usize>().unwrap() != 0),
+                        "UseSkinSprites" => s.use_skin_sprites = Some(mval.parse::<usize>().unwrap() != 0),
+                        "AlwaysShowPlayfield" => s.always_show_playfield = Some(mval.parse::<usize>().unwrap() != 0),
+                        "OverlayPosition" => s.overlay_position = Some(String::from(mval)),
+                        "SkinPreference" => s.skin_preference = Some(String::from(mval)),
+                        "EpilepsyWarning" => s.epilepsy_warning = Some(mval.parse::<usize>().unwrap() != 0),
+                        "CountdownOffset" => s.countdown_offset = Some(mval.parse().unwrap()),
+                        "SpecialStyle" => s.special_style = Some(mval.parse::<usize>().unwrap() != 0),
+                        "WidescreenStoryboard" => s.widescreen_storyboard = Some(mval.parse::<usize>().unwrap() != 0),
+                        "samples_match_playback_rate" => s.samples_match_playback_rate = Some(mval.parse::<usize>().unwrap() != 0),
                         _ => {}
                     }
+                    None => return self.error("Key not defined"),
                 }
-                Section::Difficulty(s) => {
-                    
+                Section::Editor(s) => match self.key.as_mut() {
+                    Some(k) => match k.as_str() {
+                        "Bookmarks" => s.bookmarks = Some(String::from(mval)),
+                        "DistanceSpacing" => s.distance_spacing = Some(mval.parse().unwrap()),
+                        "BeatDivisor" => s.beat_divisor = Some(mval.parse().unwrap()),
+                        "GridSize" => s.grid_size = Some(mval.parse().unwrap()),
+                        "TimelineZoom" => s.timeline_zoom = Some(mval.parse().unwrap()),
+                        _ => {}
+                    }
+                    None => return self.error("Key not defined"),
                 }
-                Section::Events(s) => {
-                    
+                Section::Metadata(s) => match self.key.as_mut() {
+                    Some(k) => match k.as_str() {
+                        "Title" => s.title = Some(String::from(mval)),
+                        "TitleUnicode" => s.title_unicode = Some(String::from(mval)),
+                        "Artist" => s.artist = Some(String::from(mval)),
+                        "ArtistUnicode" => s.artist_unicode = Some(String::from(mval)),
+                        "Creator" => s.creator = Some(String::from(mval)),
+                        "Version" => s.version = Some(String::from(mval)),
+                        "Source" => s.source = Some(String::from(mval)),
+                        "Tags" => s.tags = Some(String::from(mval)),
+                        "BeatmapID" => s.beatmap_id = Some(mval.parse().unwrap()),
+                        "BeatmapSetID" => s.beatmap_set_id = Some(mval.parse().unwrap()),
+                        _ => {}
+                    }
+                    _ => {}
                 }
-                Section::TimingPoints(s) => {
+                Section::Difficulty(s) => match self.key.as_mut() {
+                    Some(k) => match k.as_str() {
+                        "HPDrainRate" => s.hp_drain_rate = Some(mval.parse().unwrap()),
+                        "CircleSize" => s.circle_size = Some(mval.parse().unwrap()),
+                        "OverallDifficulty" => s.overall_difficulty = Some(mval.parse().unwrap()),
+                        "ApproachRate" => s.approach_rate = Some(mval.parse().unwrap()),
+                        "SliderMultiplier" => s.slider_multiplier = Some(mval.parse().unwrap()),
+                        "SliderTickRate" => s.slider_tick_rate = Some(mval.parse().unwrap()),
+                        _ => {}
+                    }
+                    _ => {}
                 }
-
                 _ => {}
-            
             }
         }
         self.key = None;

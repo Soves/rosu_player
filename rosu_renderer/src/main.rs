@@ -26,6 +26,6 @@ fn main() {
 
     let beatmap_path = path_from_args(argh::from_env());
 
-    Player::new(beatmap_path).run();
+    Player::new(beatmap_path.unwrap()).run();
 
 }

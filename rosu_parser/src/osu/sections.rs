@@ -28,13 +28,33 @@ pub struct General {
 }
 #[derive(Debug, Default)]
 pub struct Editor {
+    pub bookmarks: Option<String>, //comma separated list of ints
+    pub distance_spacing: Option<f32>,
+    pub beat_divisor: Option<usize>,
+    pub grid_size: Option<usize>,
+    pub timeline_zoom: Option<f32>,
 }
 #[derive(Debug, Default)]
 pub struct Metadata {
     pub title: Option<String>,
+    pub title_unicode: Option<String>,
+    pub artist: Option<String>,
+    pub artist_unicode: Option<String>,
+    pub creator: Option<String>,
+    pub version: Option<String>,
+    pub source: Option<String>,
+    pub tags: Option<String>, //TODO: split list
+    pub beatmap_id: Option<usize>,
+    pub beatmap_set_id: Option<usize>,
 }
 #[derive(Debug, Default)]
 pub struct Difficulty {
+    pub hp_drain_rate: Option<f32>,
+    pub circle_size: Option<f32>,
+    pub overall_difficulty: Option<f32>,
+    pub approach_rate: Option<f32>,
+    pub slider_multiplier: Option<f32>,
+    pub slider_tick_rate: Option<f32>,
 }
 #[derive(Debug, Default)]
 pub struct Events {
@@ -43,15 +63,43 @@ pub struct Events {
     pub breaks: Vec<events::Break>,
 }
 
+pub type TimingPoints = Vec<TimingPoint>;
+
 #[derive(Debug, Default)]
-pub struct TimingPoints {
+pub struct TimingPoint {
+    pub time: usize,
+    pub beat_length: f32,
+    pub meter: usize,
+    pub sample_set: usize,
+    pub sample_index: usize,
+    pub volume: usize,
+    pub uninherited: bool,
+    pub effects: usize,
 }
+
+pub type Colours = Vec<Colour>;
+
 #[derive(Debug, Default)]
-pub struct Colours {
+pub struct Colour {
+    pub combo: u8,
+    pub slider_track_override: u8,
+    pub slider_border: u8,
 }
+
+pub type HitObjects = Vec<HitObject>;
+
 #[derive(Debug, Default)]
-pub struct HitObjects {
+pub struct HitObject {
+    pub x: usize,
+    pub y: usize,
+    pub time: usize,
+    pub r#type: usize,
+    pub hit_sound: usize,
+    pub object_params: Option<String>, //TODO: split comma list
+    pub hit_sample: Option<String>, // TODO: split colon list
 }
+
+
 #[derive(Debug)]
 pub enum Value {
     Str(String),
