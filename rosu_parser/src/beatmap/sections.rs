@@ -93,12 +93,25 @@ pub struct HitObject {
     pub x: usize,
     pub y: usize,
     pub time: usize,
-    pub r#type: usize,
+    pub kind: HitObjectKind,
     pub hit_sound: usize,
     pub object_params: Option<String>, //TODO: split comma list
     pub hit_sample: Option<String>, // TODO: split colon list
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum HitObjectKind {
+    HitCircle,
+    Slider,
+    Spinner,
+    ManiaHold
+}
+
+impl Default for HitObjectKind {
+    fn default() -> Self {
+        HitObjectKind::HitCircle
+    }
+}
 
 #[derive(Debug)]
 pub enum Value {

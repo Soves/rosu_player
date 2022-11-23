@@ -5,7 +5,7 @@ pub mod sections;
 use sections::*;
 
 #[derive(Debug)]
-pub struct Osu {
+pub struct Beatmap {
     pub version: Option<usize>,
 
     pub general: Option<General>,
@@ -18,24 +18,24 @@ pub struct Osu {
     pub hit_objects: Option<HitObjects>,
 }
 
-impl Osu {
+impl Beatmap {
     
     pub fn new() -> Self {
         Default::default()
     }
 
-    pub fn load_from_string(string: String) -> Result<Osu, Error> {
+    pub fn load_from_string(string: String) -> Result<Beatmap, Error> {
         let mut parser = Parser::new(string.bytes());
         parser.parse()
     }
 
-    pub fn load_from_file(filename: &PathBuf) -> Result<Osu, Error> {
-        Osu::load_from_string(fs::read_to_string(filename).unwrap())
+    pub fn load_from_file(filename: &PathBuf) -> Result<Beatmap, Error> {
+        Beatmap::load_from_string(fs::read_to_string(filename).unwrap())
     }
 
 }
 
-impl Default for Osu {
+impl Default for Beatmap {
     fn default() -> Self {
         Self {
             version: None,
@@ -69,7 +69,7 @@ struct Parser<'a> {
     reader: Bytes<'a>,        //char iterator
     line: usize,              //current line
     col: usize,               //currennt column
-    result: Option<Osu>,
+    result: Option<Beatmap>,
 }
 
 impl<'a> Parser<'a> {
@@ -140,9 +140,9 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse(&mut self) -> Result<Osu, Error> {
+    fn parse(&mut self) -> Result<Beatmap, Error> {
         
-        self.result = Some(Osu::new());
+        self.result = Some(Beatmap::new());
         self.key = None;
 
         self.parse_whitespace();
@@ -186,7 +186,6 @@ impl<'a> Parser<'a> {
         }
 
         if let Some(res) = self.result.take() {
-            println!("last sec");
             return Ok(res)
         }
 
@@ -351,7 +350,13 @@ impl<'a> Parser<'a> {
                     x: params.next().unwrap().parse().unwrap(),
                     y: params.next().unwrap().parse().unwrap(),
                     time: params.next().unwrap().parse().unwrap(),
-                    r#type: params.next().unwrap().parse().unwrap(),
+                    kind: match params.next() {
+                        Some("0") => HitObjectKind::HitCircle,
+                        Some("1") => HitObjectKind::Slider,
+                        Some("2") => HitObjectKind::Spinner,
+                        Some("3") => HitObjectKind::ManiaHold,
+                        _ => {return  Ok(());}//{return self.error("invalid hitcircle type")},
+                    },
                     hit_sound: params.next().unwrap().parse().unwrap(),
                     object_params: match params.next() {
                         Some(string) => Some(String::from(string)),
